@@ -868,10 +868,6 @@ textarea {
   .hero h1 {
     max-width: 11ch;
   }
-
-  .hero-visual {
-    order: -1;
-  }
 }
 
 @media (max-width: 760px) {
