@@ -9,16 +9,13 @@
   </head>
   <body>
     <main class="section" style="min-height: 100vh; display: grid; place-items: center;">
-      <div class="about-panel" style="max-width: 960px;">
-        <div>
+      <div class="about-panel" style="max-width: 1120px; align-items: start;">
+        <div class="about-stack">
           <p class="eyebrow">404</p>
           <h2>This page drifted out of the scene.</h2>
-        </div>
-        <div class="about-stack">
           <p>
-            The link may be outdated, or the page may have moved. You can head back to the
-            portfolio homepage and continue exploring the latest work, or doodle for a second
-            before you head back.
+            The link may be outdated, or the page may have moved. While you are here, sketch
+            something in the mini pad below and then jump back to the portfolio.
           </p>
           <div
             style="
@@ -30,58 +27,123 @@
               background: rgba(255, 255, 255, 0.04);
             "
           >
-            <canvas
-              id="draw-pad"
-              width="520"
-              height="300"
-              aria-label="Drawing pad"
-              style="
-                width: 100%;
-                max-width: 520px;
-                border-radius: 18px;
-                background: linear-gradient(180deg, rgba(8, 8, 12, 0.95), rgba(20, 20, 28, 0.95));
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                touch-action: none;
-                cursor: crosshair;
-              "
-            ></canvas>
+            <p class="eyebrow" style="margin-bottom: 0;">Sketch Prompt</p>
+            <p id="prompt-text" style="margin: 0; color: #f3f7ff; font-size: 1.15rem;">
+              Draw a sci-fi crate silhouette in 20 seconds.
+            </p>
             <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
-              <button class="button button-primary" id="clear-pad" type="button">Clear Pad</button>
-              <a class="button button-secondary" href="/">Back to Homepage</a>
+              <button class="button button-secondary" id="new-prompt" type="button">New Prompt</button>
+              <a class="button button-primary" href="/">Back to Homepage</a>
             </div>
+          </div>
+        </div>
+
+        <div
+          style="
+            display: grid;
+            gap: 1rem;
+            padding: 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.04);
+          "
+        >
+          <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center;">
+            <button class="tool-swatch is-active" type="button" data-color="#ff6a6f" aria-label="Coral"></button>
+            <button class="tool-swatch" type="button" data-color="#ffffff" aria-label="White"></button>
+            <button class="tool-swatch" type="button" data-color="#78f0c8" aria-label="Mint"></button>
+            <button class="tool-swatch" type="button" data-color="#75b8ff" aria-label="Blue"></button>
+            <button class="tool-chip is-active" type="button" data-size="3">Thin</button>
+            <button class="tool-chip" type="button" data-size="6">Medium</button>
+            <button class="tool-chip" type="button" data-size="10">Bold</button>
+            <button class="tool-chip" type="button" id="eraser-toggle">Eraser</button>
+            <button class="tool-chip" type="button" id="glow-toggle">Glow</button>
+          </div>
+
+          <canvas
+            id="draw-pad"
+            width="700"
+            height="420"
+            aria-label="Drawing pad"
+            style="
+              width: 100%;
+              border-radius: 22px;
+              background:
+                radial-gradient(circle at top, rgba(255, 106, 111, 0.08), transparent 22%),
+                linear-gradient(180deg, rgba(8, 8, 12, 0.96), rgba(18, 18, 28, 0.96));
+              border: 1px solid rgba(255, 255, 255, 0.08);
+              touch-action: none;
+              cursor: crosshair;
+            "
+          ></canvas>
+
+          <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+            <button class="button button-primary" id="clear-pad" type="button">Clear Pad</button>
+            <button class="button button-secondary" id="save-pad" type="button">Save PNG</button>
           </div>
         </div>
       </div>
     </main>
+
     <script>
       const canvas = document.getElementById("draw-pad");
       const clearButton = document.getElementById("clear-pad");
+      const saveButton = document.getElementById("save-pad");
+      const promptButton = document.getElementById("new-prompt");
+      const promptText = document.getElementById("prompt-text");
+      const colorButtons = document.querySelectorAll("[data-color]");
+      const sizeButtons = document.querySelectorAll("[data-size]");
+      const eraserToggle = document.getElementById("eraser-toggle");
+      const glowToggle = document.getElementById("glow-toggle");
       const context = canvas.getContext("2d");
+
+      const prompts = [
+        "Draw a sci-fi crate silhouette in 20 seconds.",
+        "Sketch a stylized power core shape.",
+        "Design a quick Valorant-style wall panel.",
+        "Block out a hard-surface prop with 5 strokes.",
+        "Draw a tiny robot companion with bold shapes.",
+      ];
+
       let drawing = false;
+      let currentColor = "#ff6a6f";
+      let currentSize = 3;
+      let erasing = false;
+      let glow = false;
 
       const resetPad = () => {
+        context.globalCompositeOperation = "source-over";
+        context.shadowBlur = 0;
         context.fillStyle = "#0b0b10";
         context.fillRect(0, 0, canvas.width, canvas.height);
-        context.strokeStyle = "#ff6a6f";
-        context.lineWidth = 3;
+        applyBrush();
+      };
+
+      const applyBrush = () => {
         context.lineCap = "round";
         context.lineJoin = "round";
+        context.lineWidth = currentSize;
+        context.strokeStyle = currentColor;
+        context.shadowColor = currentColor;
+        context.shadowBlur = glow ? 18 : 0;
+        context.globalCompositeOperation = erasing ? "destination-out" : "source-over";
       };
 
       const getPoint = (event) => {
         const bounds = canvas.getBoundingClientRect();
-        const touch = event.touches ? event.touches[0] : event;
+        const pointer = event.touches ? event.touches[0] : event;
         const scaleX = canvas.width / bounds.width;
         const scaleY = canvas.height / bounds.height;
 
         return {
-          x: (touch.clientX - bounds.left) * scaleX,
-          y: (touch.clientY - bounds.top) * scaleY,
+          x: (pointer.clientX - bounds.left) * scaleX,
+          y: (pointer.clientY - bounds.top) * scaleY,
         };
       };
 
       const startDrawing = (event) => {
         drawing = true;
+        applyBrush();
         const point = getPoint(event);
         context.beginPath();
         context.moveTo(point.x, point.y);
@@ -100,10 +162,54 @@
 
       const stopDrawing = () => {
         drawing = false;
+        context.beginPath();
       };
 
-      resetPad();
+      const pickPrompt = () => {
+        const prompt = prompts[Math.floor(Math.random() * prompts.length)];
+        promptText.textContent = prompt;
+      };
+
+      colorButtons.forEach((button) => {
+        button.style.background = button.dataset.color;
+        button.addEventListener("click", () => {
+          erasing = false;
+          eraserToggle.classList.remove("is-active");
+          currentColor = button.dataset.color;
+          colorButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+          applyBrush();
+        });
+      });
+
+      sizeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          currentSize = Number(button.dataset.size);
+          sizeButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+          applyBrush();
+        });
+      });
+
+      eraserToggle.addEventListener("click", () => {
+        erasing = !erasing;
+        eraserToggle.classList.toggle("is-active", erasing);
+        applyBrush();
+      });
+
+      glowToggle.addEventListener("click", () => {
+        glow = !glow;
+        glowToggle.classList.toggle("is-active", glow);
+        applyBrush();
+      });
+
       clearButton.addEventListener("click", resetPad);
+      promptButton.addEventListener("click", pickPrompt);
+      saveButton.addEventListener("click", () => {
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "animatedit-404-sketch.png";
+        link.click();
+      });
+
       canvas.addEventListener("mousedown", startDrawing);
       canvas.addEventListener("mousemove", draw);
       canvas.addEventListener("mouseup", stopDrawing);
@@ -111,6 +217,37 @@
       canvas.addEventListener("touchstart", startDrawing, { passive: false });
       canvas.addEventListener("touchmove", draw, { passive: false });
       canvas.addEventListener("touchend", stopDrawing);
+
+      resetPad();
+      pickPrompt();
     </script>
+
+    <style>
+      .tool-swatch,
+      .tool-chip {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.05);
+        color: #f3f7ff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .tool-swatch {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+      }
+
+      .tool-chip {
+        padding: 0.65rem 0.9rem;
+        border-radius: 999px;
+      }
+
+      .tool-swatch.is-active,
+      .tool-chip.is-active {
+        border-color: rgba(255, 255, 255, 0.32);
+        box-shadow: 0 0 0 3px rgba(255, 106, 111, 0.14);
+      }
+    </style>
   </body>
 </html>
