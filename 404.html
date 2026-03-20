@@ -9,7 +9,7 @@
   </head>
   <body>
     <main class="section" style="min-height: 100vh; display: grid; place-items: center;">
-      <div class="about-panel" style="max-width: 820px;">
+      <div class="about-panel" style="max-width: 960px;">
         <div>
           <p class="eyebrow">404</p>
           <h2>This page drifted out of the scene.</h2>
@@ -17,11 +17,100 @@
         <div class="about-stack">
           <p>
             The link may be outdated, or the page may have moved. You can head back to the
-            portfolio homepage and continue exploring the latest work.
+            portfolio homepage and continue exploring the latest work, or doodle for a second
+            before you head back.
           </p>
-          <a class="button button-primary" href="/">Back to Homepage</a>
+          <div
+            style="
+              display: grid;
+              gap: 1rem;
+              padding: 1.2rem;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 24px;
+              background: rgba(255, 255, 255, 0.04);
+            "
+          >
+            <canvas
+              id="draw-pad"
+              width="520"
+              height="300"
+              aria-label="Drawing pad"
+              style="
+                width: 100%;
+                max-width: 520px;
+                border-radius: 18px;
+                background: linear-gradient(180deg, rgba(8, 8, 12, 0.95), rgba(20, 20, 28, 0.95));
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                touch-action: none;
+                cursor: crosshair;
+              "
+            ></canvas>
+            <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+              <button class="button button-primary" id="clear-pad" type="button">Clear Pad</button>
+              <a class="button button-secondary" href="/">Back to Homepage</a>
+            </div>
+          </div>
         </div>
       </div>
     </main>
+    <script>
+      const canvas = document.getElementById("draw-pad");
+      const clearButton = document.getElementById("clear-pad");
+      const context = canvas.getContext("2d");
+      let drawing = false;
+
+      const resetPad = () => {
+        context.fillStyle = "#0b0b10";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = "#ff6a6f";
+        context.lineWidth = 3;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+      };
+
+      const getPoint = (event) => {
+        const bounds = canvas.getBoundingClientRect();
+        const touch = event.touches ? event.touches[0] : event;
+        const scaleX = canvas.width / bounds.width;
+        const scaleY = canvas.height / bounds.height;
+
+        return {
+          x: (touch.clientX - bounds.left) * scaleX,
+          y: (touch.clientY - bounds.top) * scaleY,
+        };
+      };
+
+      const startDrawing = (event) => {
+        drawing = true;
+        const point = getPoint(event);
+        context.beginPath();
+        context.moveTo(point.x, point.y);
+      };
+
+      const draw = (event) => {
+        if (!drawing) {
+          return;
+        }
+
+        event.preventDefault();
+        const point = getPoint(event);
+        context.lineTo(point.x, point.y);
+        context.stroke();
+      };
+
+      const stopDrawing = () => {
+        drawing = false;
+      };
+
+      resetPad();
+      clearButton.addEventListener("click", resetPad);
+      canvas.addEventListener("mousedown", startDrawing);
+      canvas.addEventListener("mousemove", draw);
+      canvas.addEventListener("mouseup", stopDrawing);
+      canvas.addEventListener("mouseleave", stopDrawing);
+      canvas.addEventListener("touchstart", startDrawing, { passive: false });
+      canvas.addEventListener("touchmove", draw, { passive: false });
+      canvas.addEventListener("touchend", stopDrawing);
+    </script>
   </body>
 </html>
