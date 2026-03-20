@@ -285,21 +285,22 @@ async function loadSolidViewer(state) {
     host.innerHTML = "";
     host.appendChild(renderer.domElement);
 
-    const camera = new THREE.PerspectiveCamera(38, getHostAspectRatio(host), 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(shouldUseLightMode ? 52 : 46, getHostAspectRatio(host), 0.1, 100);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false;
     controls.enablePan = false;
-    controls.minDistance = 0.8;
-    controls.maxDistance = 12;
+    controls.minDistance = 1.4;
+    controls.maxDistance = 20;
     controls.addEventListener("change", () => {
       if (state.activeView === "solid") {
         renderer.render(scene, camera);
       }
     });
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x2a1d20, shouldUseLightMode ? 2.4 : 1.75));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x2a1d20, shouldUseLightMode ? 2.8 : 1.9));
+    scene.add(new THREE.AmbientLight(0xffffff, shouldUseLightMode ? 1.15 : 0.45));
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.1);
+    const keyLight = new THREE.DirectionalLight(0xffffff, shouldUseLightMode ? 2.8 : 2.15);
     keyLight.position.set(4, 6, 5);
     scene.add(keyLight);
 
@@ -318,6 +319,7 @@ async function loadSolidViewer(state) {
     const loader = new GLTFLoader();
     const gltf = await loader.loadAsync(state.work.glbPath);
     const model = gltf.scene;
+    optimizeModelMaterials(THREE, renderer, model);
     scene.add(model);
 
     fitCameraToModel({ THREE, camera, controls, model });
@@ -365,11 +367,11 @@ function fitCameraToModel({ THREE, camera, controls, model }) {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxSize = Math.max(size.x, size.y, size.z) || 1;
-  const distance = maxSize * (shouldUseLightMode ? 2.85 : 2.25);
+  const distance = maxSize * (shouldUseLightMode ? 3.55 : 2.75);
 
   camera.position.set(
-    center.x + distance * 0.52,
-    center.y + distance * (shouldUseLightMode ? 0.22 : 0.3),
+    center.x + distance * 0.42,
+    center.y + distance * (shouldUseLightMode ? 0.16 : 0.24),
     center.z + distance
   );
   camera.near = Math.max(0.01, maxSize / 100);
@@ -378,6 +380,35 @@ function fitCameraToModel({ THREE, camera, controls, model }) {
 
   controls.target.set(center.x, center.y + maxSize * 0.04, center.z);
   controls.update();
+}
+
+function optimizeModelMaterials(THREE, renderer, model) {
+  model.traverse((child) => {
+    if (!child.isMesh || !child.material) {
+      return;
+    }
+
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    child.frustumCulled = false;
+
+    materials.forEach((material) => {
+      if (material.map) {
+        material.map.colorSpace = THREE.SRGBColorSpace;
+        material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      }
+
+      if (material.normalMap) {
+        material.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      }
+
+      if (material.roughnessMap) {
+        material.roughnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      }
+
+      material.side = material.side ?? THREE.FrontSide;
+      material.needsUpdate = true;
+    });
+  });
 }
 
 function loadViewerModules() {
