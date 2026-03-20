@@ -52,6 +52,18 @@ a {
   text-decoration: none;
 }
 
+@media (pointer: fine) {
+  body,
+  a,
+  button,
+  input,
+  textarea,
+  .project-card,
+  .mode-button {
+    cursor: none;
+  }
+}
+
 .page-glow {
   position: fixed;
   border-radius: 50%;
@@ -75,6 +87,58 @@ a {
   left: -120px;
   bottom: 10%;
   background: rgba(255, 255, 255, 0.09);
+}
+
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 9999;
+  transform: translate(-100px, -100px);
+  transition:
+    opacity 180ms ease,
+    width 180ms ease,
+    height 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.cursor-dot {
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 18px rgba(255, 93, 99, 0.35);
+}
+
+.cursor-ring {
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  margin-top: -17px;
+  border: 1px solid rgba(255, 93, 99, 0.5);
+  border-radius: 50%;
+  background: rgba(255, 93, 99, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.cursor-dot.is-visible,
+.cursor-ring.is-visible {
+  opacity: 1;
+}
+
+.cursor-ring.is-active {
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  margin-top: -26px;
+  border-color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .site-header,

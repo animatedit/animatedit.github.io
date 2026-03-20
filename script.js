@@ -200,6 +200,56 @@ const initHeroTilt = () => {
   }
 };
 
+const initCustomCursor = () => {
+  const dot = document.querySelector(".cursor-dot");
+  const ring = document.querySelector(".cursor-ring");
+
+  if (!dot || !ring || !window.matchMedia("(pointer:fine)").matches) {
+    return;
+  }
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let ringX = mouseX;
+  let ringY = mouseY;
+
+  const interactiveSelector = "a, button, .project-card, .mode-button, input, textarea, label";
+
+  const updateCursor = () => {
+    ringX += (mouseX - ringX) * 0.18;
+    ringY += (mouseY - ringY) * 0.18;
+
+    dot.style.transform = `translate(${mouseX}px, ${mouseY}px)`;
+    ring.style.transform = `translate(${ringX}px, ${ringY}px)`;
+
+    requestAnimationFrame(updateCursor);
+  };
+
+  document.addEventListener("mousemove", (event) => {
+    mouseX = event.clientX;
+    mouseY = event.clientY;
+    dot.classList.add("is-visible");
+    ring.classList.add("is-visible");
+  });
+
+  document.addEventListener("mouseout", () => {
+    dot.classList.remove("is-visible");
+    ring.classList.remove("is-visible");
+  });
+
+  document.querySelectorAll(interactiveSelector).forEach((element) => {
+    element.addEventListener("mouseenter", () => {
+      ring.classList.add("is-active");
+    });
+
+    element.addEventListener("mouseleave", () => {
+      ring.classList.remove("is-active");
+    });
+  });
+
+  updateCursor();
+};
+
 const initContactForm = () => {
   const form = document.querySelector("#contact-form");
 
@@ -387,5 +437,6 @@ initProjectGrid();
 initModeSwitches();
 initReveal();
 initHeroTilt();
+initCustomCursor();
 initContactForm();
 initThreeViewers();
