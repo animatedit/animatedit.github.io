@@ -1,18 +1,17 @@
 const works = Array.isArray(window.portfolioWorks) ? window.portfolioWorks : [];
 
 const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
-const isSmallScreen = window.matchMedia("(max-width: 820px)").matches;
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const shouldUseLightMode = isTouchDevice || isSmallScreen || prefersReducedMotion;
+const shouldUseLightMode = isTouchDevice || prefersReducedMotion || window.innerWidth < 860;
 
-let threeModulePromise;
+let viewerModulesPromise;
 
 document.addEventListener("DOMContentLoaded", () => {
   renderProjectGrid();
+  setupMenu();
   setupContactForm();
-  setupRevealObserver();
-  setupTiltCard();
   setupCustomCursor();
+  setupHeroTilt();
 });
 
 function renderProjectGrid() {
@@ -22,42 +21,36 @@ function renderProjectGrid() {
     return;
   }
 
-  const cardStates = [];
+  const states = [];
 
   works.forEach((work) => {
-    const views = getAvailableViews(work);
-    const defaultView = views.includes("render") ? "render" : views[0];
+    const availableViews = normalizeViews(work.availableViews);
+    const defaultView = availableViews.includes("render") ? "render" : availableViews[0] || "solid";
     const article = document.createElement("article");
-    article.className = "project-card reveal";
-    article.innerHTML = createProjectCardMarkup(work, views, defaultView);
+    article.className = "project-card";
+    article.innerHTML = createProjectMarkup(work, availableViews, defaultView);
     grid.appendChild(article);
 
     const state = {
-      work,
-      views,
-      activeView: defaultView,
       article,
-      solidPanel: article.querySelector("[data-panel='solid']"),
-      stage: article.querySelector(".project-stage"),
+      work,
+      activeView: defaultView,
+      availableViews,
+      solidPanel: article.querySelector('[data-panel="solid"]'),
       viewerHost: article.querySelector(".viewer-canvas"),
       loadButton: article.querySelector(".solid-load-button"),
       solidHint: article.querySelector(".solid-hint"),
-      loadState: "idle",
-      resizeObserver: null,
-      controls: null,
-      camera: null,
-      scene: null,
       renderer: null,
+      scene: null,
+      camera: null,
+      controls: null,
+      resizeObserver: null,
+      loadState: "idle",
     };
 
     article.querySelectorAll(".mode-button").forEach((button) => {
       button.addEventListener("click", () => {
-        const nextView = button.dataset.view;
-        if (!state.views.includes(nextView)) {
-          return;
-        }
-
-        setActiveView(state, nextView);
+        activateView(state, button.dataset.view);
       });
     });
 
@@ -67,16 +60,15 @@ function renderProjectGrid() {
       });
     }
 
-    setupDeferredImages(article);
-    cardStates.push(state);
+    setupPanelImages(article);
+    activateView(state, defaultView);
+    states.push(state);
   });
 
-  cardStates.forEach((state) => {
-    setActiveView(state, state.activeView);
-  });
+  return states;
 }
 
-function createProjectCardMarkup(work, views, defaultView) {
+function createProjectMarkup(work, availableViews, defaultView) {
   const safeTitle = escapeHtml(work.title);
   const safeCategory = escapeHtml(work.category);
   const safeDescription = escapeHtml(work.description);
@@ -85,25 +77,23 @@ function createProjectCardMarkup(work, views, defaultView) {
   const badgeMarkup = work.commerceBadge
     ? `<div class="project-commerce">${escapeHtml(work.commerceBadge)}</div>`
     : "";
-  const actionMarkup = createActionMarkup(work);
-  const toolMarkup = Array.isArray(work.tools)
+  const toolsMarkup = Array.isArray(work.tools)
     ? work.tools.map((tool) => `<li>${escapeHtml(tool)}</li>`).join("")
     : "";
-  const modeButtons = views
+  const buttonsMarkup = availableViews
     .map((view) => {
-      const label = viewLabel(view);
       const activeClass = view === defaultView ? " is-active" : "";
-      return `<button class="mode-button${activeClass}" type="button" data-view="${view}">${label}</button>`;
+      return `<button class="mode-button${activeClass}" type="button" data-view="${view}">${viewLabel(view)}</button>`;
     })
     .join("");
 
   return `
     <div class="project-viewer-shell ${artClass}">
-      <div class="project-modes">${modeButtons}</div>
+      <div class="project-modes">${buttonsMarkup}</div>
       <div class="project-stage">
-        ${createImagePanelMarkup("render", work.renderPath, "Final render preview coming soon", safeTitle, defaultView === "render")}
-        ${createSolidPanelMarkup(work)}
-        ${createImagePanelMarkup("wireframe", work.wireframePath, "Wireframe preview coming soon", safeTitle, defaultView === "wireframe")}
+        ${createImagePanel("render", work.renderPath, safeTitle, defaultView === "render", "Final render preview coming soon")}
+        ${createSolidPanel(work)}
+        ${createImagePanel("wireframe", work.wireframePath, safeTitle, defaultView === "wireframe", "Wireframe preview coming soon")}
       </div>
     </div>
     <div class="project-copy">
@@ -114,21 +104,21 @@ function createProjectCardMarkup(work, views, defaultView) {
       <h3>${safeTitle}</h3>
       ${badgeMarkup}
       <p>${safeDescription}</p>
-      ${actionMarkup}
-      <ul>${toolMarkup}</ul>
+      ${createActionMarkup(work)}
+      <ul>${toolsMarkup}</ul>
     </div>
   `;
 }
 
-function createImagePanelMarkup(type, imagePath, fallbackText, title, eagerLoad) {
-  const hasImage = Boolean(imagePath);
-  const imageMarkup = hasImage
-    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${eagerLoad ? `src="${escapeAttribute(imagePath)}"` : `data-src="${escapeAttribute(imagePath)}"`} alt="${escapeAttribute(title)} ${type} view" loading="lazy" decoding="async" />`
+function createImagePanel(type, path, title, shouldLoadNow, fallbackText) {
+  const hasPath = Boolean(path);
+  const imageMarkup = hasPath
+    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${shouldLoadNow ? `src="${escapeAttribute(path)}"` : `data-src="${escapeAttribute(path)}"`} alt="${escapeAttribute(title)} ${type} view" loading="lazy" decoding="async" />`
     : "";
-  const emptyClass = hasImage ? "" : " is-active";
+  const emptyClass = hasPath ? "" : " is-active";
 
   return `
-    <div class="render-panel${emptyClass}" data-panel="${type}">
+    <div class="render-panel" data-panel="${type}">
       ${imageMarkup}
       <div class="render-empty${emptyClass}">
         <p>${escapeHtml(fallbackText)}</p>
@@ -137,14 +127,11 @@ function createImagePanelMarkup(type, imagePath, fallbackText, title, eagerLoad)
   `;
 }
 
-function createSolidPanelMarkup(work) {
-  const helperText = shouldUseLightMode
-    ? "Tap to load a lightweight interactive 3D view."
-    : "Load the interactive 3D view when you want to inspect the model.";
-  const buttonText = shouldUseLightMode ? "Load 3D Preview" : "Open Interactive 3D";
-  const posterText = shouldUseLightMode
-    ? "3D is loaded on demand for smoother mobile performance."
-    : "3D loads only when opened to keep the site fast.";
+function createSolidPanel(work) {
+  const helperText = isTouchDevice
+    ? "Tap to load the interactive 3D preview."
+    : "Load the interactive 3D preview when you want to inspect the model.";
+  const buttonText = isTouchDevice ? "Tap To Load 3D" : "Load Interactive 3D";
 
   return `
     <div class="viewer-panel" data-panel="solid">
@@ -153,7 +140,7 @@ function createSolidPanelMarkup(work) {
         <h4>Interactive model view</h4>
         <p class="solid-hint">${helperText}</p>
         <button class="solid-load-button button button-secondary" type="button">${buttonText}</button>
-        <p class="solid-note">${posterText}</p>
+        <p class="solid-note">3D stays on-demand so the site feels smoother on phones and slower networks.</p>
       </div>
       <div class="viewer-canvas" hidden></div>
     </div>
@@ -167,22 +154,39 @@ function createActionMarkup(work) {
     return "";
   }
 
-  const text = work.actionText || (work.allowModelDownload ? "Open 3D model" : "View details");
-  const rel = work.allowModelDownload ? "" : ` target="_blank" rel="noreferrer"`;
-  const downloadAttr = work.allowModelDownload ? "" : "";
-
-  return `<a class="project-link" href="${escapeAttribute(href)}"${rel}${downloadAttr}>${escapeHtml(text)}</a>`;
+  const text = escapeHtml(work.actionText || (work.allowModelDownload ? "Open 3D model" : "View details"));
+  const attrs = work.allowModelDownload ? "" : ' target="_blank" rel="noreferrer"';
+  return `<a class="project-link" href="${escapeAttribute(href)}"${attrs}>${text}</a>`;
 }
 
-function getAvailableViews(work) {
-  if (Array.isArray(work.availableViews) && work.availableViews.length) {
-    return work.availableViews.filter((view) => ["render", "solid", "wireframe"].includes(view));
+function setupPanelImages(root) {
+  root.querySelectorAll(".render-panel").forEach((panel) => {
+    const img = panel.querySelector("img");
+    const fallback = panel.querySelector(".render-empty");
+
+    if (!img || !fallback) {
+      return;
+    }
+
+    img.addEventListener("load", () => {
+      fallback.classList.remove("is-active");
+    });
+
+    img.addEventListener("error", () => {
+      fallback.classList.add("is-active");
+    });
+
+    if (img.getAttribute("src") && img.complete && img.naturalWidth > 0) {
+      fallback.classList.remove("is-active");
+    }
+  });
+}
+
+function activateView(state, nextView) {
+  if (!state.availableViews.includes(nextView)) {
+    return;
   }
 
-  return ["solid"];
-}
-
-function setActiveView(state, nextView) {
   state.activeView = nextView;
 
   state.article.querySelectorAll(".mode-button").forEach((button) => {
@@ -194,41 +198,18 @@ function setActiveView(state, nextView) {
   });
 
   if (nextView === "render" || nextView === "wireframe") {
-    hydratePanelImage(state.article.querySelector(`[data-panel="${nextView}"]`));
+    hydrateImagePanel(state.article.querySelector(`[data-panel="${nextView}"]`));
   }
 
   if (nextView === "solid" && state.loadState === "loaded" && state.renderer) {
     requestAnimationFrame(() => {
-      handleViewerResize(state);
+      resizeViewer(state);
       state.renderer.render(state.scene, state.camera);
     });
   }
 }
 
-function setupDeferredImages(root) {
-  root.querySelectorAll(".render-panel").forEach((panel) => {
-    const img = panel.querySelector("img");
-
-    if (!img) {
-      return;
-    }
-
-    img.addEventListener("load", () => {
-      panel.querySelector(".render-empty")?.classList.remove("is-active");
-    });
-
-    img.addEventListener("error", () => {
-      img.removeAttribute("src");
-      panel.querySelector(".render-empty")?.classList.add("is-active");
-    });
-
-    if (img.getAttribute("src")) {
-      hydratePanelImage(panel);
-    }
-  });
-}
-
-function hydratePanelImage(panel) {
+function hydrateImagePanel(panel) {
   if (!panel) {
     return;
   }
@@ -236,41 +217,33 @@ function hydratePanelImage(panel) {
   const img = panel.querySelector("img");
   const fallback = panel.querySelector(".render-empty");
 
-  if (!img) {
-    fallback?.classList.add("is-active");
+  if (!img || !fallback) {
     return;
   }
 
-  if (!img.getAttribute("src")) {
-    const deferredSource = img.dataset.src;
-
-    if (deferredSource) {
-      img.setAttribute("src", deferredSource);
-    }
+  if (!img.getAttribute("src") && img.dataset.src) {
+    img.setAttribute("src", img.dataset.src);
   }
 
   if (img.complete && img.naturalWidth > 0) {
-    fallback?.classList.remove("is-active");
+    fallback.classList.remove("is-active");
   }
 }
 
 async function loadSolidViewer(state) {
-  if (!state || state.loadState === "loading" || state.loadState === "loaded") {
+  if (state.loadState === "loading" || state.loadState === "loaded") {
     return;
   }
 
   state.loadState = "loading";
-  state.solidPanel.classList.add("is-loading");
   state.loadButton.disabled = true;
   state.loadButton.textContent = "Loading 3D...";
-  state.solidHint.textContent = "Preparing the model viewer.";
+  state.solidHint.textContent = "Preparing the viewer and model.";
 
   try {
     const { THREE, OrbitControls, GLTFLoader } = await loadViewerModules();
-    const scene = new THREE.Scene();
-    scene.background = null;
-
     const host = state.viewerHost;
+    const scene = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({
       antialias: !shouldUseLightMode,
       alpha: true,
@@ -279,41 +252,39 @@ async function loadSolidViewer(state) {
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = shouldUseLightMode ? 1.45 : 1.2;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, shouldUseLightMode ? 1.1 : 1.5));
+    renderer.toneMappingExposure = shouldUseLightMode ? 1.55 : 1.28;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, shouldUseLightMode ? 1.15 : 1.6));
     renderer.setSize(host.clientWidth || 300, host.clientHeight || 320, false);
     host.innerHTML = "";
     host.appendChild(renderer.domElement);
 
-    const camera = new THREE.PerspectiveCamera(shouldUseLightMode ? 52 : 46, getHostAspectRatio(host), 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(shouldUseLightMode ? 54 : 48, getAspectRatio(host), 0.1, 200);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = false;
     controls.enablePan = false;
-    controls.minDistance = 1.4;
-    controls.maxDistance = 20;
+    controls.enableDamping = false;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 30;
     controls.addEventListener("change", () => {
-      if (state.activeView === "solid") {
-        renderer.render(scene, camera);
-      }
+      renderer.render(scene, camera);
     });
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x2a1d20, shouldUseLightMode ? 2.8 : 1.9));
-    scene.add(new THREE.AmbientLight(0xffffff, shouldUseLightMode ? 1.15 : 0.45));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x2a1d20, shouldUseLightMode ? 3.1 : 2.15));
+    scene.add(new THREE.AmbientLight(0xffffff, shouldUseLightMode ? 1.3 : 0.55));
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, shouldUseLightMode ? 2.8 : 2.15);
-    keyLight.position.set(4, 6, 5);
+    const keyLight = new THREE.DirectionalLight(0xffffff, shouldUseLightMode ? 3.0 : 2.2);
+    keyLight.position.set(4, 6, 6);
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0xff8c86, shouldUseLightMode ? 2.1 : 1.4);
-    rimLight.position.set(-3, 2, -4);
-    scene.add(rimLight);
-
-    const fillLight = new THREE.DirectionalLight(0xcad8ff, shouldUseLightMode ? 1.7 : 0.8);
-    fillLight.position.set(0, -2, 3);
+    const fillLight = new THREE.DirectionalLight(0xcfdcff, shouldUseLightMode ? 1.95 : 1.0);
+    fillLight.position.set(-3, 2, 4);
     scene.add(fillLight);
 
-    const frontLight = new THREE.DirectionalLight(0xffffff, shouldUseLightMode ? 1.9 : 0.7);
-    frontLight.position.set(0, 1.5, 6);
+    const rimLight = new THREE.DirectionalLight(0xff8c86, shouldUseLightMode ? 1.8 : 1.1);
+    rimLight.position.set(-4, 3, -5);
+    scene.add(rimLight);
+
+    const frontLight = new THREE.DirectionalLight(0xffffff, shouldUseLightMode ? 2.1 : 0.8);
+    frontLight.position.set(0, 1.5, 7);
     scene.add(frontLight);
 
     const loader = new GLTFLoader();
@@ -322,34 +293,31 @@ async function loadSolidViewer(state) {
     optimizeModelMaterials(THREE, renderer, model);
     scene.add(model);
 
-    fitCameraToModel({ THREE, camera, controls, model });
+    frameModel({ THREE, camera, controls, model });
 
     state.scene = scene;
     state.camera = camera;
     state.controls = controls;
     state.renderer = renderer;
     state.resizeObserver = new ResizeObserver(() => {
-      handleViewerResize(state);
+      resizeViewer(state);
     });
     state.resizeObserver.observe(host);
-
     state.loadState = "loaded";
-    state.solidPanel.classList.remove("is-loading");
-    state.solidPanel.classList.add("is-loaded");
     state.viewerHost.hidden = false;
+    state.solidPanel.classList.add("is-loaded");
     renderer.render(scene, camera);
   } catch (error) {
+    console.error("Failed to load 3D viewer", error);
     state.loadState = "error";
-    state.solidPanel.classList.remove("is-loading");
-    state.solidPanel.classList.add("is-error");
     state.loadButton.disabled = false;
     state.loadButton.textContent = "Try 3D Again";
-    state.solidHint.textContent = "3D preview is unavailable right now. You can still view renders and wireframes.";
-    console.error("3D viewer failed to load", error);
+    state.solidPanel.classList.add("is-error");
+    state.solidHint.textContent = "3D preview is unavailable right now. The render and wireframe views still work.";
   }
 }
 
-function handleViewerResize(state) {
+function resizeViewer(state) {
   if (!state.renderer || !state.camera || !state.viewerHost) {
     return;
   }
@@ -362,23 +330,23 @@ function handleViewerResize(state) {
   state.renderer.render(state.scene, state.camera);
 }
 
-function fitCameraToModel({ THREE, camera, controls, model }) {
+function frameModel({ THREE, camera, controls, model }) {
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxSize = Math.max(size.x, size.y, size.z) || 1;
-  const distance = maxSize * (shouldUseLightMode ? 3.55 : 2.75);
+  const distance = maxSize * (shouldUseLightMode ? 3.8 : 3.0);
 
   camera.position.set(
-    center.x + distance * 0.42,
-    center.y + distance * (shouldUseLightMode ? 0.16 : 0.24),
+    center.x + distance * 0.38,
+    center.y + distance * (shouldUseLightMode ? 0.12 : 0.18),
     center.z + distance
   );
-  camera.near = Math.max(0.01, maxSize / 100);
-  camera.far = Math.max(100, maxSize * 20);
+  camera.near = Math.max(0.01, maxSize / 120);
+  camera.far = Math.max(120, maxSize * 30);
   camera.updateProjectionMatrix();
 
-  controls.target.set(center.x, center.y + maxSize * 0.04, center.z);
+  controls.target.set(center.x, center.y + maxSize * 0.03, center.z);
   controls.update();
 }
 
@@ -388,32 +356,32 @@ function optimizeModelMaterials(THREE, renderer, model) {
       return;
     }
 
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
     child.frustumCulled = false;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    const anisotropy = renderer.capabilities.getMaxAnisotropy();
 
     materials.forEach((material) => {
       if (material.map) {
         material.map.colorSpace = THREE.SRGBColorSpace;
-        material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        material.map.anisotropy = anisotropy;
       }
 
       if (material.normalMap) {
-        material.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        material.normalMap.anisotropy = anisotropy;
       }
 
       if (material.roughnessMap) {
-        material.roughnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        material.roughnessMap.anisotropy = anisotropy;
       }
 
-      material.side = material.side ?? THREE.FrontSide;
       material.needsUpdate = true;
     });
   });
 }
 
 function loadViewerModules() {
-  if (!threeModulePromise) {
-    threeModulePromise = Promise.all([
+  if (!viewerModulesPromise) {
+    viewerModulesPromise = Promise.all([
       import("https://esm.sh/three@0.161.0"),
       import("https://esm.sh/three@0.161.0/examples/jsm/controls/OrbitControls.js"),
       import("https://esm.sh/three@0.161.0/examples/jsm/loaders/GLTFLoader.js"),
@@ -424,7 +392,30 @@ function loadViewerModules() {
     }));
   }
 
-  return threeModulePromise;
+  return viewerModulesPromise;
+}
+
+function setupMenu() {
+  const header = document.querySelector(".site-header");
+  const toggle = document.querySelector(".menu-toggle");
+  const nav = document.querySelector(".main-nav");
+
+  if (!header || !toggle || !nav) {
+    return;
+  }
+
+  toggle.addEventListener("click", () => {
+    const nextOpen = !header.classList.contains("is-open");
+    header.classList.toggle("is-open", nextOpen);
+    toggle.setAttribute("aria-expanded", String(nextOpen));
+  });
+
+  nav.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", () => {
+      header.classList.remove("is-open");
+      toggle.setAttribute("aria-expanded", "false");
+    });
+  });
 }
 
 function setupContactForm() {
@@ -442,63 +433,9 @@ function setupContactForm() {
     const email = `${formData.get("email") || ""}`.trim();
     const subject = `${formData.get("subject") || ""}`.trim();
     const message = `${formData.get("message") || ""}`.trim();
-
     const mailSubject = encodeURIComponent(subject || "Project inquiry");
-    const body = encodeURIComponent(
-      `Name: ${name}\nEmail: ${email}\n\n${message}`
-    );
-
+    const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\n${message}`);
     window.location.href = `mailto:panchalnitesh258@gmail.com?subject=${mailSubject}&body=${body}`;
-  });
-}
-
-function setupRevealObserver() {
-  const items = document.querySelectorAll(".reveal");
-
-  if (!items.length || typeof IntersectionObserver === "undefined") {
-    return;
-  }
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    {
-      threshold: 0.16,
-      rootMargin: "0px 0px -6% 0px",
-    }
-  );
-
-  items.forEach((item) => observer.observe(item));
-}
-
-function setupTiltCard() {
-  if (shouldUseLightMode) {
-    return;
-  }
-
-  const card = document.querySelector(".tilt-card");
-
-  if (!card) {
-    return;
-  }
-
-  card.addEventListener("pointermove", (event) => {
-    const rect = card.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width;
-    const y = (event.clientY - rect.top) / rect.height;
-    const rotateY = (x - 0.5) * 12;
-    const rotateX = (0.5 - y) * 10;
-    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-  });
-
-  card.addEventListener("pointerleave", () => {
-    card.style.transform = "";
   });
 }
 
@@ -519,40 +456,62 @@ function setupCustomCursor() {
   let ringX = -100;
   let ringY = -100;
 
-  const hoverables = document.querySelectorAll("a, button, input, textarea, .project-card");
+  const interactive = document.querySelectorAll("a, button, input, textarea, .project-card");
 
-  const animateRing = () => {
+  const animate = () => {
     ringX += (targetX - ringX) * 0.22;
     ringY += (targetY - ringY) * 0.22;
+    dot.style.transform = `translate(${targetX}px, ${targetY}px)`;
     ring.style.transform = `translate(${ringX}px, ${ringY}px)`;
-    requestAnimationFrame(animateRing);
+    requestAnimationFrame(animate);
   };
 
   document.addEventListener("pointermove", (event) => {
     targetX = event.clientX;
     targetY = event.clientY;
-    dot.style.transform = `translate(${targetX}px, ${targetY}px)`;
     dot.classList.add("is-visible");
     ring.classList.add("is-visible");
   });
 
-  hoverables.forEach((item) => {
-    item.addEventListener("pointerenter", () => {
-      ring.classList.add("is-active");
-    });
-
-    item.addEventListener("pointerleave", () => {
-      ring.classList.remove("is-active");
-    });
+  interactive.forEach((node) => {
+    node.addEventListener("pointerenter", () => ring.classList.add("is-active"));
+    node.addEventListener("pointerleave", () => ring.classList.remove("is-active"));
   });
 
-  requestAnimationFrame(animateRing);
+  requestAnimationFrame(animate);
 }
 
-function getHostAspectRatio(host) {
-  const width = host.clientWidth || 300;
-  const height = host.clientHeight || 320;
-  return width / height;
+function setupHeroTilt() {
+  if (isTouchDevice || prefersReducedMotion) {
+    return;
+  }
+
+  const card = document.querySelector(".tilt-card");
+
+  if (!card) {
+    return;
+  }
+
+  card.addEventListener("pointermove", (event) => {
+    const rect = card.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    const rotateY = (x - 0.5) * 10;
+    const rotateX = (0.5 - y) * 8;
+    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+  });
+
+  card.addEventListener("pointerleave", () => {
+    card.style.transform = "";
+  });
+}
+
+function normalizeViews(views) {
+  if (!Array.isArray(views) || !views.length) {
+    return ["solid"];
+  }
+
+  return views.filter((view) => ["render", "solid", "wireframe"].includes(view));
 }
 
 function viewLabel(view) {
@@ -565,6 +524,12 @@ function viewLabel(view) {
   }
 
   return "Solid";
+}
+
+function getAspectRatio(host) {
+  const width = host.clientWidth || 300;
+  const height = host.clientHeight || 320;
+  return width / height;
 }
 
 function escapeHtml(value) {

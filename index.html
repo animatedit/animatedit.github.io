@@ -46,17 +46,26 @@
     <div class="cursor-ring" aria-hidden="true"></div>
 
     <header class="site-header">
-      <a href="#top" class="brand">
-        <img class="brand-logo" src="assets/animatedit-logo.jpg" alt="AnimatEdit logo" />
-        <span class="brand-text">AnimatEdit</span>
-      </a>
+      <div class="header-shell">
+        <a href="#top" class="brand">
+          <img class="brand-logo" src="assets/animatedit-logo.jpg" alt="AnimatEdit logo" />
+          <span class="brand-text">AnimatEdit</span>
+        </a>
 
-      <nav class="main-nav">
-        <a href="#work">Work</a>
-        <a href="#about">About</a>
-        <a href="#services">Services</a>
-        <a href="#contact">Contact</a>
-      </nav>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span class="sr-only">Toggle navigation</span>
+        </button>
+
+        <nav class="main-nav" id="main-nav">
+          <a href="#work">Work</a>
+          <a href="#about">About</a>
+          <a href="#services">Services</a>
+          <a href="#contact">Contact</a>
+        </nav>
+      </div>
     </header>
 
     <main id="top">
