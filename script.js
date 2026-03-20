@@ -1,257 +1,393 @@
-const projectGrid = document.querySelector("#project-grid");
-const viewerInstances = [];
+const works = Array.isArray(window.portfolioWorks) ? window.portfolioWorks : [];
 
-const getAssetPath = (path) => encodeURI(path);
-const allModes = ["render", "solid", "wireframe"];
+const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
+const isSmallScreen = window.matchMedia("(max-width: 820px)").matches;
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const shouldUseLightMode = isTouchDevice || isSmallScreen || prefersReducedMotion;
 
-const createModeButtons = (work) => {
-  const availableViews = work.availableViews || ["solid"];
-  const firstMode = availableViews[0];
+let threeModulePromise;
 
-  return allModes
-    .filter((mode) => availableViews.includes(mode))
-    .map(
-      (mode) => `
-        <button class="mode-button ${mode === firstMode ? "is-active" : ""}" type="button" data-mode="${mode}">
-          ${mode.charAt(0).toUpperCase() + mode.slice(1)}
-        </button>
-      `
-    )
+document.addEventListener("DOMContentLoaded", () => {
+  renderProjectGrid();
+  setupContactForm();
+  setupRevealObserver();
+  setupTiltCard();
+  setupCustomCursor();
+});
+
+function renderProjectGrid() {
+  const grid = document.getElementById("project-grid");
+
+  if (!grid) {
+    return;
+  }
+
+  const cardStates = [];
+
+  works.forEach((work) => {
+    const views = getAvailableViews(work);
+    const defaultView = views.includes("render") ? "render" : views[0];
+    const article = document.createElement("article");
+    article.className = "project-card reveal";
+    article.innerHTML = createProjectCardMarkup(work, views, defaultView);
+    grid.appendChild(article);
+
+    const state = {
+      work,
+      views,
+      activeView: defaultView,
+      article,
+      solidPanel: article.querySelector("[data-panel='solid']"),
+      stage: article.querySelector(".project-stage"),
+      viewerHost: article.querySelector(".viewer-canvas"),
+      loadButton: article.querySelector(".solid-load-button"),
+      solidHint: article.querySelector(".solid-hint"),
+      loadState: "idle",
+      resizeObserver: null,
+      controls: null,
+      camera: null,
+      scene: null,
+      renderer: null,
+    };
+
+    article.querySelectorAll(".mode-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextView = button.dataset.view;
+        if (!state.views.includes(nextView)) {
+          return;
+        }
+
+        setActiveView(state, nextView);
+      });
+    });
+
+    if (state.loadButton) {
+      state.loadButton.addEventListener("click", () => {
+        loadSolidViewer(state);
+      });
+    }
+
+    setupDeferredImages(article);
+    cardStates.push(state);
+  });
+
+  cardStates.forEach((state) => {
+    setActiveView(state, state.activeView);
+  });
+}
+
+function createProjectCardMarkup(work, views, defaultView) {
+  const safeTitle = escapeHtml(work.title);
+  const safeCategory = escapeHtml(work.category);
+  const safeDescription = escapeHtml(work.description);
+  const safeLabel = escapeHtml(work.glbLabel || "3D asset");
+  const artClass = escapeHtml(work.artClass || "");
+  const badgeMarkup = work.commerceBadge
+    ? `<div class="project-commerce">${escapeHtml(work.commerceBadge)}</div>`
+    : "";
+  const actionMarkup = createActionMarkup(work);
+  const toolMarkup = Array.isArray(work.tools)
+    ? work.tools.map((tool) => `<li>${escapeHtml(tool)}</li>`).join("")
+    : "";
+  const modeButtons = views
+    .map((view) => {
+      const label = viewLabel(view);
+      const activeClass = view === defaultView ? " is-active" : "";
+      return `<button class="mode-button${activeClass}" type="button" data-view="${view}">${label}</button>`;
+    })
     .join("");
-};
 
-const createProjectAction = (work) => {
-  const actionText = work.actionText || "Open 3D model";
-
-  if (work.allowModelDownload) {
-    return `
-      <a class="project-link" href="${getAssetPath(work.glbPath)}" target="_blank" rel="noreferrer">
-        ${actionText}
-      </a>
-    `;
-  }
-
-  if (work.purchaseUrl) {
-    return `
-      <a class="project-link" href="${work.purchaseUrl}" target="_blank" rel="noreferrer">
-        ${actionText}
-      </a>
-    `;
-  }
-
-  return "";
-};
-
-const createCommerceBadge = (work) => {
-  if (!work.commerceBadge) {
-    return "";
-  }
-
-  return `<span class="project-commerce">${work.commerceBadge}</span>`;
-};
-
-const createViewerMarkup = (work, index) => `
-  <article class="project-card reveal">
-    <div class="project-viewer-shell ${work.artClass || ""}">
-      <div class="project-modes" role="tablist" aria-label="${work.title} showcase modes">
-        ${createModeButtons(work)}
-      </div>
+  return `
+    <div class="project-viewer-shell ${artClass}">
+      <div class="project-modes">${modeButtons}</div>
       <div class="project-stage">
-        <div class="render-panel ${(work.availableViews || ["solid"])[0] === "render" ? "is-active" : ""}" data-panel="render">
-          <img
-            class="render-image"
-            src="${getAssetPath(work.renderPath)}"
-            alt="${work.title} final render"
-            loading="lazy"
-          />
-          <div class="render-empty">Final render preview coming soon.</div>
-        </div>
-        <div class="viewer-panel ${(work.availableViews || ["solid"])[0] === "solid" ? "is-active" : ""}" data-panel="solid">
-          <div class="viewer-canvas" data-viewer="${index}" aria-label="${work.title} solid viewer">
-            <div class="viewer-loading">Loading interactive model...</div>
-          </div>
-        </div>
-        <div class="render-panel ${(work.availableViews || ["solid"])[0] === "wireframe" ? "is-active" : ""}" data-panel="wireframe">
-          <img
-            class="wireframe-image"
-            src="${getAssetPath(work.wireframePath)}"
-            alt="${work.title} wireframe viewport render"
-            loading="lazy"
-          />
-          <div class="render-empty wireframe-empty">Wireframe preview coming soon.</div>
-        </div>
+        ${createImagePanelMarkup("render", work.renderPath, "Final render preview coming soon", safeTitle, defaultView === "render")}
+        ${createSolidPanelMarkup(work)}
+        ${createImagePanelMarkup("wireframe", work.wireframePath, "Wireframe preview coming soon", safeTitle, defaultView === "wireframe")}
       </div>
     </div>
     <div class="project-copy">
       <div class="project-topline">
-        <p class="project-type">${work.category}</p>
-        <span class="project-glb">${work.glbLabel}</span>
+        <p class="project-type">${safeCategory}</p>
+        <span class="project-glb">${safeLabel}</span>
       </div>
-      ${createCommerceBadge(work)}
-      <h3>${work.title}</h3>
-      <p>${work.description}</p>
-      ${createProjectAction(work)}
-      <ul>
-        ${work.tools.map((tool) => `<li>${tool}</li>`).join("")}
-      </ul>
+      <h3>${safeTitle}</h3>
+      ${badgeMarkup}
+      <p>${safeDescription}</p>
+      ${actionMarkup}
+      <ul>${toolMarkup}</ul>
     </div>
-  </article>
-`;
+  `;
+}
 
-const initProjectGrid = () => {
-  if (!projectGrid || !Array.isArray(window.portfolioWorks)) {
+function createImagePanelMarkup(type, imagePath, fallbackText, title, eagerLoad) {
+  const hasImage = Boolean(imagePath);
+  const imageMarkup = hasImage
+    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${eagerLoad ? `src="${escapeAttribute(imagePath)}"` : `data-src="${escapeAttribute(imagePath)}"`} alt="${escapeAttribute(title)} ${type} view" loading="lazy" decoding="async" />`
+    : "";
+  const emptyClass = hasImage ? "" : " is-active";
+
+  return `
+    <div class="render-panel${emptyClass}" data-panel="${type}">
+      ${imageMarkup}
+      <div class="render-empty${emptyClass}">
+        <p>${escapeHtml(fallbackText)}</p>
+      </div>
+    </div>
+  `;
+}
+
+function createSolidPanelMarkup(work) {
+  const helperText = shouldUseLightMode
+    ? "Tap to load a lightweight interactive 3D view."
+    : "Load the interactive 3D view when you want to inspect the model.";
+  const buttonText = shouldUseLightMode ? "Load 3D Preview" : "Open Interactive 3D";
+  const posterText = shouldUseLightMode
+    ? "3D is loaded on demand for smoother mobile performance."
+    : "3D loads only when opened to keep the site fast.";
+
+  return `
+    <div class="viewer-panel" data-panel="solid">
+      <div class="solid-placeholder">
+        <p class="solid-kicker">${escapeHtml(work.title)}</p>
+        <h4>Interactive model view</h4>
+        <p class="solid-hint">${helperText}</p>
+        <button class="solid-load-button button button-secondary" type="button">${buttonText}</button>
+        <p class="solid-note">${posterText}</p>
+      </div>
+      <div class="viewer-canvas" hidden></div>
+    </div>
+  `;
+}
+
+function createActionMarkup(work) {
+  const href = work.allowModelDownload ? work.glbPath : work.purchaseUrl;
+
+  if (!href) {
+    return "";
+  }
+
+  const text = work.actionText || (work.allowModelDownload ? "Open 3D model" : "View details");
+  const rel = work.allowModelDownload ? "" : ` target="_blank" rel="noreferrer"`;
+  const downloadAttr = work.allowModelDownload ? "" : "";
+
+  return `<a class="project-link" href="${escapeAttribute(href)}"${rel}${downloadAttr}>${escapeHtml(text)}</a>`;
+}
+
+function getAvailableViews(work) {
+  if (Array.isArray(work.availableViews) && work.availableViews.length) {
+    return work.availableViews.filter((view) => ["render", "solid", "wireframe"].includes(view));
+  }
+
+  return ["solid"];
+}
+
+function setActiveView(state, nextView) {
+  state.activeView = nextView;
+
+  state.article.querySelectorAll(".mode-button").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === nextView);
+  });
+
+  state.article.querySelectorAll("[data-panel]").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.panel === nextView);
+  });
+
+  if (nextView === "render" || nextView === "wireframe") {
+    hydratePanelImage(state.article.querySelector(`[data-panel="${nextView}"]`));
+  }
+
+  if (nextView === "solid" && state.loadState === "loaded" && state.renderer) {
+    requestAnimationFrame(() => {
+      handleViewerResize(state);
+      state.renderer.render(state.scene, state.camera);
+    });
+  }
+}
+
+function setupDeferredImages(root) {
+  root.querySelectorAll(".render-panel").forEach((panel) => {
+    const img = panel.querySelector("img");
+
+    if (!img) {
+      return;
+    }
+
+    img.addEventListener("load", () => {
+      panel.querySelector(".render-empty")?.classList.remove("is-active");
+    });
+
+    img.addEventListener("error", () => {
+      img.removeAttribute("src");
+      panel.querySelector(".render-empty")?.classList.add("is-active");
+    });
+
+    if (img.getAttribute("src")) {
+      hydratePanelImage(panel);
+    }
+  });
+}
+
+function hydratePanelImage(panel) {
+  if (!panel) {
     return;
   }
 
-  projectGrid.innerHTML = window.portfolioWorks.map(createViewerMarkup).join("");
-};
+  const img = panel.querySelector("img");
+  const fallback = panel.querySelector(".render-empty");
 
-const initModeSwitches = () => {
-  const cards = document.querySelectorAll(".project-card");
-
-  cards.forEach((card) => {
-    const buttons = card.querySelectorAll(".mode-button");
-    const panels = card.querySelectorAll("[data-panel]");
-    const renderImage = card.querySelector(".render-image");
-    const renderEmpty = card.querySelector(".render-empty");
-    const wireframeImage = card.querySelector(".wireframe-image");
-    const wireframeEmpty = card.querySelector(".wireframe-empty");
-
-    if (renderImage && renderEmpty) {
-      renderImage.addEventListener("load", () => {
-        renderEmpty.style.display = "none";
-        renderImage.style.display = "block";
-      });
-
-      renderImage.addEventListener("error", () => {
-        renderImage.style.display = "none";
-        renderEmpty.style.display = "grid";
-      });
-    }
-
-    if (wireframeImage && wireframeEmpty) {
-      wireframeImage.addEventListener("load", () => {
-        wireframeEmpty.style.display = "none";
-        wireframeImage.style.display = "block";
-      });
-
-      wireframeImage.addEventListener("error", () => {
-        wireframeImage.style.display = "none";
-        wireframeEmpty.style.display = "grid";
-      });
-    }
-
-    buttons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const mode = button.dataset.mode;
-
-        buttons.forEach((item) => item.classList.toggle("is-active", item === button));
-        panels.forEach((panel) => {
-          panel.classList.toggle("is-active", panel.dataset.panel === mode);
-        });
-      });
-    });
-  });
-};
-
-const initReveal = () => {
-  const revealItems = document.querySelectorAll(".reveal");
-
-  if (!("IntersectionObserver" in window)) {
-    revealItems.forEach((item) => item.classList.add("is-visible"));
+  if (!img) {
+    fallback?.classList.add("is-active");
     return;
   }
 
-  const revealObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          revealObserver.unobserve(entry.target);
-        }
-      });
-    },
-    {
-      threshold: 0.18,
+  if (!img.getAttribute("src")) {
+    const deferredSource = img.dataset.src;
+
+    if (deferredSource) {
+      img.setAttribute("src", deferredSource);
     }
-  );
-
-  revealItems.forEach((item) => revealObserver.observe(item));
-};
-
-const initHeroTilt = () => {
-  const tiltCard = document.querySelector(".tilt-card");
-
-  if (tiltCard && window.matchMedia("(pointer:fine)").matches) {
-    tiltCard.addEventListener("mousemove", (event) => {
-      const bounds = tiltCard.getBoundingClientRect();
-      const x = event.clientX - bounds.left;
-      const y = event.clientY - bounds.top;
-
-      const rotateY = ((x / bounds.width) - 0.5) * 14;
-      const rotateX = ((y / bounds.height) - 0.5) * -14;
-
-      tiltCard.style.transform = `perspective(1100px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-    });
-
-    tiltCard.addEventListener("mouseleave", () => {
-      tiltCard.style.transform = "perspective(1100px) rotateX(0deg) rotateY(0deg)";
-    });
   }
-};
 
-const initCustomCursor = () => {
-  const dot = document.querySelector(".cursor-dot");
-  const ring = document.querySelector(".cursor-ring");
+  if (img.complete && img.naturalWidth > 0) {
+    fallback?.classList.remove("is-active");
+  }
+}
 
-  if (!dot || !ring || !window.matchMedia("(pointer:fine)").matches) {
+async function loadSolidViewer(state) {
+  if (!state || state.loadState === "loading" || state.loadState === "loaded") {
     return;
   }
 
-  let mouseX = window.innerWidth / 2;
-  let mouseY = window.innerHeight / 2;
-  let ringX = mouseX;
-  let ringY = mouseY;
+  state.loadState = "loading";
+  state.solidPanel.classList.add("is-loading");
+  state.loadButton.disabled = true;
+  state.loadButton.textContent = "Loading 3D...";
+  state.solidHint.textContent = "Preparing the model viewer.";
 
-  const interactiveSelector = "a, button, .project-card, .mode-button, input, textarea, label";
+  try {
+    const { THREE, OrbitControls, GLTFLoader } = await loadViewerModules();
+    const scene = new THREE.Scene();
+    scene.background = null;
 
-  const updateCursor = () => {
-    ringX += (mouseX - ringX) * 0.18;
-    ringY += (mouseY - ringY) * 0.18;
-
-    dot.style.transform = `translate(${mouseX}px, ${mouseY}px)`;
-    ring.style.transform = `translate(${ringX}px, ${ringY}px)`;
-
-    requestAnimationFrame(updateCursor);
-  };
-
-  document.addEventListener("mousemove", (event) => {
-    mouseX = event.clientX;
-    mouseY = event.clientY;
-    dot.classList.add("is-visible");
-    ring.classList.add("is-visible");
-  });
-
-  document.addEventListener("mouseout", () => {
-    dot.classList.remove("is-visible");
-    ring.classList.remove("is-visible");
-  });
-
-  document.querySelectorAll(interactiveSelector).forEach((element) => {
-    element.addEventListener("mouseenter", () => {
-      ring.classList.add("is-active");
+    const host = state.viewerHost;
+    const renderer = new THREE.WebGLRenderer({
+      antialias: !shouldUseLightMode,
+      alpha: true,
+      powerPreference: "high-performance",
     });
 
-    element.addEventListener("mouseleave", () => {
-      ring.classList.remove("is-active");
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, shouldUseLightMode ? 1.1 : 1.5));
+    renderer.setSize(host.clientWidth || 300, host.clientHeight || 320, false);
+    host.innerHTML = "";
+    host.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(38, getHostAspectRatio(host), 0.1, 100);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = false;
+    controls.enablePan = false;
+    controls.minDistance = 0.8;
+    controls.maxDistance = 12;
+    controls.addEventListener("change", () => {
+      if (state.activeView === "solid") {
+        renderer.render(scene, camera);
+      }
     });
-  });
 
-  updateCursor();
-};
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x160d0f, 1.55));
 
-const initContactForm = () => {
-  const form = document.querySelector("#contact-form");
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.1);
+    keyLight.position.set(4, 6, 5);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0xff8c86, 1.4);
+    rimLight.position.set(-3, 2, -4);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0xcad8ff, 0.8);
+    fillLight.position.set(0, -2, 3);
+    scene.add(fillLight);
+
+    const loader = new GLTFLoader();
+    const gltf = await loader.loadAsync(state.work.glbPath);
+    const model = gltf.scene;
+    scene.add(model);
+
+    fitCameraToModel({ THREE, camera, controls, model });
+
+    state.scene = scene;
+    state.camera = camera;
+    state.controls = controls;
+    state.renderer = renderer;
+    state.resizeObserver = new ResizeObserver(() => {
+      handleViewerResize(state);
+    });
+    state.resizeObserver.observe(host);
+
+    state.loadState = "loaded";
+    state.solidPanel.classList.remove("is-loading");
+    state.solidPanel.classList.add("is-loaded");
+    state.viewerHost.hidden = false;
+    renderer.render(scene, camera);
+  } catch (error) {
+    state.loadState = "error";
+    state.solidPanel.classList.remove("is-loading");
+    state.solidPanel.classList.add("is-error");
+    state.loadButton.disabled = false;
+    state.loadButton.textContent = "Try 3D Again";
+    state.solidHint.textContent = "3D preview is unavailable right now. You can still view renders and wireframes.";
+    console.error("3D viewer failed to load", error);
+  }
+}
+
+function handleViewerResize(state) {
+  if (!state.renderer || !state.camera || !state.viewerHost) {
+    return;
+  }
+
+  const width = state.viewerHost.clientWidth || 300;
+  const height = state.viewerHost.clientHeight || 320;
+  state.camera.aspect = width / height;
+  state.camera.updateProjectionMatrix();
+  state.renderer.setSize(width, height, false);
+  state.renderer.render(state.scene, state.camera);
+}
+
+function fitCameraToModel({ THREE, camera, controls, model }) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxSize = Math.max(size.x, size.y, size.z) || 1;
+  const distance = maxSize * 1.9;
+
+  camera.position.set(center.x + distance * 0.55, center.y + distance * 0.35, center.z + distance);
+  camera.near = Math.max(0.01, maxSize / 100);
+  camera.far = Math.max(100, maxSize * 20);
+  camera.updateProjectionMatrix();
+
+  controls.target.copy(center);
+  controls.update();
+}
+
+function loadViewerModules() {
+  if (!threeModulePromise) {
+    threeModulePromise = Promise.all([
+      import("https://esm.sh/three@0.161.0"),
+      import("https://esm.sh/three@0.161.0/examples/jsm/controls/OrbitControls.js"),
+      import("https://esm.sh/three@0.161.0/examples/jsm/loaders/GLTFLoader.js"),
+    ]).then(([THREE, controlsModule, loaderModule]) => ({
+      THREE,
+      OrbitControls: controlsModule.OrbitControls,
+      GLTFLoader: loaderModule.GLTFLoader,
+    }));
+  }
+
+  return threeModulePromise;
+}
+
+function setupContactForm() {
+  const form = document.getElementById("contact-form");
 
   if (!form) {
     return;
@@ -261,182 +397,144 @@ const initContactForm = () => {
     event.preventDefault();
 
     const formData = new FormData(form);
-    const name = formData.get("name")?.toString().trim() || "";
-    const email = formData.get("email")?.toString().trim() || "";
-    const subject = formData.get("subject")?.toString().trim() || "Project Inquiry";
-    const message = formData.get("message")?.toString().trim() || "";
+    const name = `${formData.get("name") || ""}`.trim();
+    const email = `${formData.get("email") || ""}`.trim();
+    const subject = `${formData.get("subject") || ""}`.trim();
+    const message = `${formData.get("message") || ""}`.trim();
 
-    const body = [
-      `Name: ${name}`,
-      `Email: ${email}`,
-      "",
-      message,
-    ].join("\n");
+    const mailSubject = encodeURIComponent(subject || "Project inquiry");
+    const body = encodeURIComponent(
+      `Name: ${name}\nEmail: ${email}\n\n${message}`
+    );
 
-    const mailto = `mailto:panchalnitesh258@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
+    window.location.href = `mailto:panchalnitesh258@gmail.com?subject=${mailSubject}&body=${body}`;
   });
-};
+}
 
-const showViewerMessage = (mountNode, message, type = "error") => {
-  mountNode.innerHTML = `<div class="viewer-${type}">${message}</div>`;
-};
+function setupRevealObserver() {
+  const items = document.querySelectorAll(".reveal");
 
-const setMaterialMode = (root, mode) => {
-  root.traverse((child) => {
-    if (!child.isMesh) {
-      return;
-    }
-
-    const sourceMaterial = child.userData.baseMaterial || child.material;
-    child.userData.baseMaterial = sourceMaterial;
-    child.material = sourceMaterial;
-    child.material.wireframe = mode === "wireframe";
-    child.material.needsUpdate = true;
-  });
-};
-
-const fitCameraToObject = (THREE, camera, controls, object) => {
-  const box = new THREE.Box3().setFromObject(object);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z) || 1;
-  const fov = (camera.fov * Math.PI) / 180;
-  const distance = maxDim / (2 * Math.tan(fov / 2));
-
-  camera.position.set(center.x + distance * 0.9, center.y + distance * 0.45, center.z + distance * 1.2);
-  camera.near = distance / 100;
-  camera.far = distance * 100;
-  camera.updateProjectionMatrix();
-
-  controls.target.copy(center);
-  controls.minDistance = distance * 0.4;
-  controls.maxDistance = distance * 4;
-  controls.update();
-};
-
-const buildViewer = async (deps, mountNode, glbPath, mode) => {
-  const { THREE, GLTFLoader, OrbitControls } = deps;
-  mountNode.innerHTML = "";
-
-  const loader = new GLTFLoader();
-  const scene = new THREE.Scene();
-  scene.background = null;
-
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha: true,
-  });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  mountNode.appendChild(renderer.domElement);
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.autoRotate = mode === "solid";
-  controls.autoRotateSpeed = 1.1;
-  controls.enablePan = false;
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1a1414, 1.3);
-  scene.add(hemiLight);
-
-  const dirLight = new THREE.DirectionalLight(0xffffff, 2.4);
-  dirLight.position.set(4, 5, 6);
-  scene.add(dirLight);
-
-  const rimLight = new THREE.DirectionalLight(0xff7d70, 1.1);
-  rimLight.position.set(-5, 3, -4);
-  scene.add(rimLight);
-
-  const resize = () => {
-    const width = mountNode.clientWidth || 100;
-    const height = mountNode.clientHeight || 320;
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, height, false);
-  };
-
-  resize();
-
-  const gltf = await loader.loadAsync(getAssetPath(glbPath));
-  const modelRoot = gltf.scene;
-  setMaterialMode(modelRoot, mode);
-  scene.add(modelRoot);
-  fitCameraToObject(THREE, camera, controls, modelRoot);
-
-  renderer.setAnimationLoop(() => {
-    controls.update();
-    renderer.render(scene, camera);
-  });
-
-  const resizeObserver = new ResizeObserver(resize);
-  resizeObserver.observe(mountNode);
-
-  return {
-    renderer,
-    resizeObserver,
-  };
-};
-
-const loadThreeDependencies = async () => {
-  const [THREE, gltfModule, orbitModule] = await Promise.all([
-    import("https://esm.sh/three@0.164.1"),
-    import("https://esm.sh/three@0.164.1/examples/jsm/loaders/GLTFLoader"),
-    import("https://esm.sh/three@0.164.1/examples/jsm/controls/OrbitControls"),
-  ]);
-
-  return {
-    THREE,
-    GLTFLoader: gltfModule.GLTFLoader,
-    OrbitControls: orbitModule.OrbitControls,
-  };
-};
-
-const initThreeViewers = async () => {
-  if (!Array.isArray(window.portfolioWorks)) {
+  if (!items.length || typeof IntersectionObserver === "undefined") {
     return;
   }
 
-  let deps;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    {
+      threshold: 0.16,
+      rootMargin: "0px 0px -6% 0px",
+    }
+  );
 
-  try {
-    deps = await loadThreeDependencies();
-  } catch (error) {
-    document.querySelectorAll(".viewer-canvas").forEach((mountNode) => {
-      showViewerMessage(mountNode, "Interactive model preview is unavailable right now.");
+  items.forEach((item) => observer.observe(item));
+}
+
+function setupTiltCard() {
+  if (shouldUseLightMode) {
+    return;
+  }
+
+  const card = document.querySelector(".tilt-card");
+
+  if (!card) {
+    return;
+  }
+
+  card.addEventListener("pointermove", (event) => {
+    const rect = card.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    const rotateY = (x - 0.5) * 12;
+    const rotateX = (0.5 - y) * 10;
+    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+  });
+
+  card.addEventListener("pointerleave", () => {
+    card.style.transform = "";
+  });
+}
+
+function setupCustomCursor() {
+  if (isTouchDevice || prefersReducedMotion) {
+    return;
+  }
+
+  const dot = document.querySelector(".cursor-dot");
+  const ring = document.querySelector(".cursor-ring");
+
+  if (!dot || !ring) {
+    return;
+  }
+
+  let targetX = -100;
+  let targetY = -100;
+  let ringX = -100;
+  let ringY = -100;
+
+  const hoverables = document.querySelectorAll("a, button, input, textarea, .project-card");
+
+  const animateRing = () => {
+    ringX += (targetX - ringX) * 0.22;
+    ringY += (targetY - ringY) * 0.22;
+    ring.style.transform = `translate(${ringX}px, ${ringY}px)`;
+    requestAnimationFrame(animateRing);
+  };
+
+  document.addEventListener("pointermove", (event) => {
+    targetX = event.clientX;
+    targetY = event.clientY;
+    dot.style.transform = `translate(${targetX}px, ${targetY}px)`;
+    dot.classList.add("is-visible");
+    ring.classList.add("is-visible");
+  });
+
+  hoverables.forEach((item) => {
+    item.addEventListener("pointerenter", () => {
+      ring.classList.add("is-active");
     });
-    return;
+
+    item.addEventListener("pointerleave", () => {
+      ring.classList.remove("is-active");
+    });
+  });
+
+  requestAnimationFrame(animateRing);
+}
+
+function getHostAspectRatio(host) {
+  const width = host.clientWidth || 300;
+  const height = host.clientHeight || 320;
+  return width / height;
+}
+
+function viewLabel(view) {
+  if (view === "render") {
+    return "Render";
   }
 
-  const jobs = [];
+  if (view === "wireframe") {
+    return "Wireframe";
+  }
 
-  window.portfolioWorks.forEach((work, index) => {
-    const solidMount = document.querySelector(`[data-viewer="${index}"]`);
+  return "Solid";
+}
 
-    if (solidMount) {
-      jobs.push(
-        buildViewer(deps, solidMount, work.glbPath, "solid").catch(() => {
-          showViewerMessage(solidMount, "Interactive model preview is unavailable for this piece.");
-        })
-      );
-    }
-  });
+function escapeHtml(value) {
+  return `${value || ""}`
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
-  const results = await Promise.allSettled(jobs);
-  results.forEach((result) => {
-    if (result.status === "fulfilled") {
-      viewerInstances.push(result.value);
-    }
-  });
-};
-
-initProjectGrid();
-initModeSwitches();
-initReveal();
-initHeroTilt();
-initCustomCursor();
-initContactForm();
-initThreeViewers();
+function escapeAttribute(value) {
+  return escapeHtml(value);
+}
