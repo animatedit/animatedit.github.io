@@ -278,6 +278,8 @@ async function loadSolidViewer(state) {
     });
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = shouldUseLightMode ? 1.45 : 1.2;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, shouldUseLightMode ? 1.1 : 1.5));
     renderer.setSize(host.clientWidth || 300, host.clientHeight || 320, false);
     host.innerHTML = "";
@@ -295,19 +297,23 @@ async function loadSolidViewer(state) {
       }
     });
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x160d0f, 1.55));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x2a1d20, shouldUseLightMode ? 2.4 : 1.75));
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.1);
     keyLight.position.set(4, 6, 5);
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0xff8c86, 1.4);
+    const rimLight = new THREE.DirectionalLight(0xff8c86, shouldUseLightMode ? 2.1 : 1.4);
     rimLight.position.set(-3, 2, -4);
     scene.add(rimLight);
 
-    const fillLight = new THREE.DirectionalLight(0xcad8ff, 0.8);
+    const fillLight = new THREE.DirectionalLight(0xcad8ff, shouldUseLightMode ? 1.7 : 0.8);
     fillLight.position.set(0, -2, 3);
     scene.add(fillLight);
+
+    const frontLight = new THREE.DirectionalLight(0xffffff, shouldUseLightMode ? 1.9 : 0.7);
+    frontLight.position.set(0, 1.5, 6);
+    scene.add(frontLight);
 
     const loader = new GLTFLoader();
     const gltf = await loader.loadAsync(state.work.glbPath);
@@ -359,14 +365,18 @@ function fitCameraToModel({ THREE, camera, controls, model }) {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxSize = Math.max(size.x, size.y, size.z) || 1;
-  const distance = maxSize * 1.9;
+  const distance = maxSize * (shouldUseLightMode ? 2.85 : 2.25);
 
-  camera.position.set(center.x + distance * 0.55, center.y + distance * 0.35, center.z + distance);
+  camera.position.set(
+    center.x + distance * 0.52,
+    center.y + distance * (shouldUseLightMode ? 0.22 : 0.3),
+    center.z + distance
+  );
   camera.near = Math.max(0.01, maxSize / 100);
   camera.far = Math.max(100, maxSize * 20);
   camera.updateProjectionMatrix();
 
-  controls.target.copy(center);
+  controls.target.set(center.x, center.y + maxSize * 0.04, center.z);
   controls.update();
 }
 
