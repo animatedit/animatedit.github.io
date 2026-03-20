@@ -214,7 +214,7 @@
             <a href="#" aria-disabled="true">Gumroad coming soon</a>
           </div>
         </div>
-        <form class="contact-form reveal" id="contact-form">
+        <form class="contact-form reveal" id="contact-form" novalidate>
           <p class="eyebrow">Quick Message</p>
           <h2>Send a project inquiry.</h2>
           <label>
@@ -233,6 +233,7 @@
             <span>Message</span>
             <textarea name="message" rows="5" placeholder="Tell me about your project, timeline, or idea." required></textarea>
           </label>
+          <div class="form-alert" id="form-alert" aria-live="polite" hidden></div>
           <button class="button button-primary" type="submit">Create Email Draft</button>
           <p class="form-note">This opens your email app with the message pre-filled.</p>
         </form>

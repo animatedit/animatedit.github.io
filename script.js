@@ -425,8 +425,36 @@ function setupContactForm() {
     return;
   }
 
+  const alertBox = document.getElementById("form-alert");
+  const fields = [...form.querySelectorAll("input[required], textarea[required]")];
+
+  fields.forEach((field) => {
+    field.addEventListener("input", () => {
+      clearFieldError(field);
+      if (alertBox) {
+        alertBox.hidden = true;
+        alertBox.textContent = "";
+      }
+    });
+  });
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+
+    const invalidField = fields.find((field) => !field.checkValidity());
+
+    if (invalidField) {
+      const message = getFieldErrorMessage(invalidField);
+      showFieldError(invalidField, message);
+
+      if (alertBox) {
+        alertBox.hidden = false;
+        alertBox.textContent = message;
+      }
+
+      invalidField.focus();
+      return;
+    }
 
     const formData = new FormData(form);
     const name = `${formData.get("name") || ""}`.trim();
@@ -437,6 +465,55 @@ function setupContactForm() {
     const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\n${message}`);
     window.location.href = `mailto:panchalnitesh258@gmail.com?subject=${mailSubject}&body=${body}`;
   });
+}
+
+function getFieldErrorMessage(field) {
+  const label = field.name === "name"
+    ? "your name"
+    : field.name === "email"
+      ? "a valid email address"
+      : field.name === "subject"
+        ? "what the project is about"
+        : "your message";
+
+  if (field.validity.valueMissing) {
+    return `Please enter ${label}.`;
+  }
+
+  if (field.validity.typeMismatch) {
+    return "Please enter a valid email address.";
+  }
+
+  return "Please check this field and try again.";
+}
+
+function showFieldError(field, message) {
+  clearFieldError(field);
+  const label = field.closest("label");
+
+  if (!label) {
+    return;
+  }
+
+  label.classList.add("is-invalid");
+  field.setAttribute("aria-invalid", "true");
+
+  const error = document.createElement("p");
+  error.className = "field-error";
+  error.textContent = message;
+  label.appendChild(error);
+}
+
+function clearFieldError(field) {
+  const label = field.closest("label");
+
+  if (!label) {
+    return;
+  }
+
+  label.classList.remove("is-invalid");
+  field.removeAttribute("aria-invalid");
+  label.querySelector(".field-error")?.remove();
 }
 
 function setupCustomCursor() {

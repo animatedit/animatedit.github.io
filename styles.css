@@ -837,6 +837,31 @@ textarea {
   border-color: rgba(255, 100, 106, 0.42);
 }
 
+.contact-form label.is-invalid input,
+.contact-form label.is-invalid textarea {
+  border-color: rgba(255, 100, 106, 0.75);
+  box-shadow: 0 0 0 4px rgba(255, 100, 106, 0.1);
+}
+
+.field-error,
+.form-alert {
+  margin: 0;
+  color: #ffd7d9;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.field-error {
+  margin-top: 0.2rem;
+}
+
+.form-alert {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 100, 106, 0.3);
+  border-radius: 16px;
+  background: rgba(255, 100, 106, 0.1);
+}
+
 .form-note,
 .site-footer {
   color: var(--muted);
