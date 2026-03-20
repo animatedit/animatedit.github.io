@@ -42,6 +42,14 @@ const createProjectAction = (work) => {
   return "";
 };
 
+const createCommerceBadge = (work) => {
+  if (!work.commerceBadge) {
+    return "";
+  }
+
+  return `<span class="project-commerce">${work.commerceBadge}</span>`;
+};
+
 const createViewerMarkup = (work, index) => `
   <article class="project-card reveal">
     <div class="project-viewer-shell ${work.artClass || ""}">
@@ -79,6 +87,7 @@ const createViewerMarkup = (work, index) => `
         <p class="project-type">${work.category}</p>
         <span class="project-glb">${work.glbLabel}</span>
       </div>
+      ${createCommerceBadge(work)}
       <h3>${work.title}</h3>
       <p>${work.description}</p>
       ${createProjectAction(work)}
@@ -189,6 +198,34 @@ const initHeroTilt = () => {
       tiltCard.style.transform = "perspective(1100px) rotateX(0deg) rotateY(0deg)";
     });
   }
+};
+
+const initContactForm = () => {
+  const form = document.querySelector("#contact-form");
+
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const formData = new FormData(form);
+    const name = formData.get("name")?.toString().trim() || "";
+    const email = formData.get("email")?.toString().trim() || "";
+    const subject = formData.get("subject")?.toString().trim() || "Project Inquiry";
+    const message = formData.get("message")?.toString().trim() || "";
+
+    const body = [
+      `Name: ${name}`,
+      `Email: ${email}`,
+      "",
+      message,
+    ].join("\n");
+
+    const mailto = `mailto:panchalnitesh258@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+  });
 };
 
 const showViewerMessage = (mountNode, message, type = "error") => {
@@ -350,4 +387,5 @@ initProjectGrid();
 initModeSwitches();
 initReveal();
 initHeroTilt();
+initContactForm();
 initThreeViewers();

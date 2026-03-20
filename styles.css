@@ -588,6 +588,17 @@ a {
   font-size: 1.4rem;
 }
 
+.project-commerce {
+  display: inline-flex;
+  margin-bottom: 0.9rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid rgba(255, 93, 99, 0.28);
+  border-radius: 999px;
+  color: #ffd7d9;
+  font-size: 0.82rem;
+  background: rgba(255, 93, 99, 0.12);
+}
+
 .project-link {
   display: inline-flex;
   margin-top: 0.9rem;
@@ -605,12 +616,50 @@ a {
 }
 
 .about-panel,
-.contact-card {
+.contact-card,
+.contact-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2rem;
   padding: 2rem;
   border-radius: var(--radius-lg);
+}
+
+.contact-form {
+  margin-top: 1.4rem;
+  grid-template-columns: 1fr;
+}
+
+.contact-form label {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.contact-form span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.contact-form input,
+.contact-form textarea {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus {
+  outline: 2px solid rgba(255, 93, 99, 0.28);
+  border-color: rgba(255, 93, 99, 0.4);
+}
+
+.form-note {
+  margin: 0;
+  color: var(--muted);
 }
 
 .about-stack {
@@ -703,6 +752,13 @@ a {
   text-align: center;
 }
 
+.viewer-loading {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+  background-size: 220% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
 .viewer-error {
   color: #ffd2d4;
 }
@@ -728,10 +784,21 @@ a {
   }
 }
 
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -20% 0;
+  }
+}
+
 @media (max-width: 980px) {
   .hero,
   .about-panel,
   .contact-card,
+  .contact-form,
   .project-grid,
   .services-grid,
   .stats {
