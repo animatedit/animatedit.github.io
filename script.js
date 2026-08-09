@@ -14,58 +14,80 @@ document.addEventListener("DOMContentLoaded", () => {
   setupHeroTilt();
 });
 
+// Render projects into the three specific grids the site markup provides
 function renderProjectGrid() {
-  const grid = document.getElementById("project-grid");
+  const allStates = [];
 
-  if (!grid) {
-    return;
-  }
-
-  const states = [];
-
-  works.forEach((work) => {
-    const availableViews = normalizeViews(work.availableViews);
-    const defaultView = availableViews.includes("render") ? "render" : availableViews[0] || "solid";
-    const article = document.createElement("article");
-    article.className = "project-card";
-    article.innerHTML = createProjectMarkup(work, availableViews, defaultView);
-    grid.appendChild(article);
-
-    const state = {
-      article,
-      work,
-      activeView: defaultView,
-      availableViews,
-      solidPanel: article.querySelector('[data-panel="solid"]'),
-      viewerHost: article.querySelector(".viewer-canvas"),
-      loadButton: article.querySelector(".solid-load-button"),
-      solidHint: article.querySelector(".solid-hint"),
-      renderer: null,
-      scene: null,
-      camera: null,
-      controls: null,
-      resizeObserver: null,
-      loadState: "idle",
-    };
-
-    article.querySelectorAll(".mode-button").forEach((button) => {
-      button.addEventListener("click", () => {
-        activateView(state, button.dataset.view);
-      });
-    });
-
-    if (state.loadButton) {
-      state.loadButton.addEventListener("click", () => {
-        loadSolidViewer(state);
-      });
+  function renderList(gridId, items) {
+    const grid = document.getElementById(gridId);
+    if (!grid || !Array.isArray(items) || !items.length) {
+      return [];
     }
 
-    setupPanelImages(article);
-    activateView(state, defaultView);
-    states.push(state);
-  });
+    const states = [];
 
-  return states;
+    items.forEach((work) => {
+      const availableViews = normalizeViews(work.availableViews);
+      const defaultView = availableViews.includes("render") ? "render" : availableViews[0] || "solid";
+      const article = document.createElement("article");
+      article.className = "project-card";
+      article.innerHTML = createProjectMarkup(work, availableViews, defaultView);
+      grid.appendChild(article);
+
+      const state = {
+        article,
+        work,
+        activeView: defaultView,
+        availableViews,
+        solidPanel: article.querySelector('[data-panel="solid"]'),
+        viewerHost: article.querySelector(".viewer-canvas"),
+        loadButton: article.querySelector(".solid-load-button"),
+        solidHint: article.querySelector(".solid-hint"),
+        renderer: null,
+        scene: null,
+        camera: null,
+        controls: null,
+        resizeObserver: null,
+        loadState: "idle",
+      };
+
+      article.querySelectorAll(".mode-button").forEach((button) => {
+        button.addEventListener("click", () => {
+          activateView(state, button.dataset.view);
+        });
+      });
+
+      if (state.loadButton) {
+        state.loadButton.addEventListener("click", () => {
+          loadSolidViewer(state);
+        });
+      }
+
+      setupPanelImages(article);
+      activateView(state, defaultView);
+      states.push(state);
+    });
+
+    return states;
+  }
+
+  // Models grid: prefer `window.portfolioModels` if present, otherwise fall back to `works`
+  const modelItems = Array.isArray(window.portfolioModels) ? window.portfolioModels : works;
+  allStates.push(...renderList("model-grid", modelItems));
+
+  // Materials grid: try to pick items that look like material studies from the main works list
+  const materialsSource = Array.isArray(window.portfolioWorks) ? window.portfolioWorks : works;
+  const materialItems = materialsSource.filter((w) => {
+    return (w && w.category && /material/i.test(w.category)) || (w && /material/i.test(w.title));
+  });
+  // If there are none, render any remaining items (so the section isn't empty)
+  allStates.push(...(materialItems.length ? renderList("materials-grid", materialItems) : renderList("materials-grid", materialsSource)));
+
+  // Motion grid: use `window.portfolioMotions` if present
+  const motionItems = Array.isArray(window.portfolioMotions) ? window.portfolioMotions : [];
+  allStates.push(...renderList("motion-grid", motionItems));
+
+  return allStates;
 }
 
 function createProjectMarkup(work, availableViews, defaultView) {
@@ -113,7 +135,7 @@ function createProjectMarkup(work, availableViews, defaultView) {
 function createImagePanel(type, path, title, shouldLoadNow, fallbackText) {
   const hasPath = Boolean(path);
   const imageMarkup = hasPath
-    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${shouldLoadNow ? `src="${escapeAttribute(path)}"` : `data-src="${escapeAttribute(path)}"`} alt="${escapeAttribute(title)} ${type} view" loading="lazy" decoding="async" />`
+    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${shouldLoadNow ? `src="${escapeAttribute(path)}"` : `data-src="${escapeAttribute(path)}"`} alt="${escapeAttribute(title)} ${type} preview"/>`
     : "";
   const emptyClass = hasPath ? "" : " is-active";
 
