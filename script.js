@@ -110,12 +110,14 @@ function createProjectMarkup(work, availableViews, defaultView) {
     .join("");
 
   return `
-    <div class="project-viewer-shell ${artClass}">
+    <div class="project-viewer">
       <div class="project-modes">${buttonsMarkup}</div>
-      <div class="project-stage">
-        ${createImagePanel("render", work.renderPath, safeTitle, defaultView === "render", "Final render preview coming soon")}
-        ${createSolidPanel(work)}
-        ${createImagePanel("wireframe", work.wireframePath, safeTitle, defaultView === "wireframe", "Wireframe preview coming soon")}
+      <div class="project-viewer-shell ${artClass}">
+        <div class="project-stage">
+          ${createImagePanel("render", work.renderPath, safeTitle, defaultView === "render", "Final render preview coming soon")}
+          ${createSolidPanel(work)}
+          ${createImagePanel("wireframe", work.wireframePath, safeTitle, defaultView === "wireframe", "Wireframe preview coming soon")}
+        </div>
       </div>
     </div>
     <div class="project-copy">
@@ -135,7 +137,7 @@ function createProjectMarkup(work, availableViews, defaultView) {
 function createImagePanel(type, path, title, shouldLoadNow, fallbackText) {
   const hasPath = Boolean(path);
   const imageMarkup = hasPath
-    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${shouldLoadNow ? `src="${escapeAttribute(path)}"` : `data-src="${escapeAttribute(path)}"`} alt="${escapeAttribute(title)} ${type} preview"/>`
+    ? `<img class="${type === "wireframe" ? "wireframe-image" : "render-image"}" ${shouldLoadNow ? `src="${escapeAttribute(path)}"` : `data-src="${escapeAttribute(path)}"`} alt="${escapeAttribute(title)} ${type} view" loading="lazy" decoding="async" />`
     : "";
   const emptyClass = hasPath ? "" : " is-active";
 
