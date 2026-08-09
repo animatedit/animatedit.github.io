@@ -1,23 +1,154 @@
-/* Backup copy for testing — do not use on Pages directly */
-/* This file is a copy of styles.css from main. Edit here for experiments. */
+/* Backup copy for testing — card styles rebuilt from scratch.
+   Edit this file on branch `css-experiment` while main remains untouched.
+   This file intentionally contains only the card-related styles so you can
+   iterate safely. Keep other global styles in styles.css on main.
+*/
 
 :root {
-  --bg: #07080d;
-  --bg-alt: #10131c;
-  --panel: rgba(13, 16, 24, 0.9);
-  --panel-soft: rgba(20, 24, 34, 0.78);
-  --line: rgba(255, 255, 255, 0.1);
-  --text: #f5f7fb;
-  --muted: #b8c0d3;
-  --accent: #ff646a;
-  --accent-soft: rgba(255, 100, 106, 0.18);
-  --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
-  --radius-lg: 28px;
-  --radius-md: 20px;
-  --radius-sm: 14px;
-  --section-width: 1160px;
-  --page-gutter: clamp(1rem, 2vw, 1.4rem);
-  --header-height: 88px;
+  --card-radius: 16px;
+  --card-padding: 1.25rem;
 }
 
-/* ...rest of the styles.css contents copied verbatim... */
+/* Project grid — responsive, auto-fit columns */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.6rem;
+}
+
+/* Basic card container */
+.project-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  isolation: isolate; /* keep stacking context contained */
+}
+
+/* Hover/active lift to separate cards visually */
+.project-card:hover,
+.project-card:focus-within {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 50px rgba(0,0,0,0.35);
+}
+
+/* Viewer shell: reserves space at top for controls and keeps viewer area stable */
+.project-viewer-shell {
+  position: relative;
+  background: var(--bg-alt);
+  min-height: 320px;
+  padding-top: 3.2rem; /* reserve for the mode bar */
+}
+
+/* Mode bar — left aligned, does not span the whole card */
+.project-modes {
+  position: absolute;
+  top: 0.5rem;
+  left: 1rem;
+  right: auto; /* don't span full width */
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 12;
+}
+
+.mode-button {
+  padding: 0.5rem 0.8rem;
+  min-height: 38px;
+  border-radius: 999px;
+  background: rgba(10,12,18,0.76);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-weight: 700;
+}
+
+.mode-button.is-active {
+  background: linear-gradient(135deg, rgba(255,100,106,0.94), rgba(255,130,118,0.94));
+  border-color: transparent;
+}
+
+/* Project stage / panels */
+.project-stage {
+  position: relative;
+  width: 100%;
+  height: 320px;
+}
+
+/* Panels are stacked but only the active one displays */
+.render-panel,
+.viewer-panel {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.render-panel.is-active,
+.viewer-panel.is-active {
+  display: block;
+}
+
+.render-image,
+.wireframe-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Viewer canvas area — show/hide via [hidden] attribute */
+.viewer-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.viewer-canvas[hidden] { display: none; }
+.viewer-canvas canvas { width: 100%; height: 100%; display: block; }
+
+/* Solid placeholder content (text + load button) */
+.solid-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: var(--card-padding);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.solid-kicker { color: var(--accent); font-weight: 700; font-size: 0.82rem; text-transform: uppercase; }
+.solid-note { color: var(--muted); font-size: 0.95rem; }
+
+/* When viewer is loaded, hide the placeholder */
+.viewer-panel.is-loaded .solid-placeholder { display: none; }
+
+/* Project copy/content area (title, meta, description) */
+.project-copy {
+  padding: var(--card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.project-topline { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; }
+.project-type { color: var(--accent); font-weight: 700; font-size: 0.84rem; text-transform: uppercase; }
+.project-glb { background: rgba(255,255,255,0.04); padding: 0.35rem 0.65rem; border-radius: 999px; font-size: 0.8rem; }
+
+/* Tools list */
+.project-copy ul { display:flex; flex-wrap:wrap; gap:0.5rem; padding:0; margin:0; list-style:none; }
+.project-copy ul li { padding: 0.42rem 0.7rem; background: rgba(255,255,255,0.03); border-radius:999px; font-size:0.92rem; color:var(--muted); }
+
+/* Responsive tweaks */
+@media (max-width: 760px) {
+  .project-viewer-shell { padding-top: 2.6rem; min-height: 260px; }
+  .project-grid { gap: 1rem; }
+  .mode-button { min-height: 36px; padding: 0.46rem 0.7rem; }
+}
+
+/* Utility: ensure viewer canvas stays visible above placeholder when loaded */
+.viewer-canvas { z-index: 6; }
+.project-modes { z-index: 14; }
+
+/* End of card styles */
