@@ -1,0 +1,23 @@
+/* Backup copy for testing — do not use on Pages directly */
+/* This file is a copy of styles.css from main. Edit here for experiments. */
+
+:root {
+  --bg: #07080d;
+  --bg-alt: #10131c;
+  --panel: rgba(13, 16, 24, 0.9);
+  --panel-soft: rgba(20, 24, 34, 0.78);
+  --line: rgba(255, 255, 255, 0.1);
+  --text: #f5f7fb;
+  --muted: #b8c0d3;
+  --accent: #ff646a;
+  --accent-soft: rgba(255, 100, 106, 0.18);
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  --radius-lg: 28px;
+  --radius-md: 20px;
+  --radius-sm: 14px;
+  --section-width: 1160px;
+  --page-gutter: clamp(1rem, 2vw, 1.4rem);
+  --header-height: 88px;
+}
+
+/* ...rest of the styles.css contents copied verbatim... */
