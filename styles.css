@@ -1,4 +1,3 @@
-/* Prevent mode button overlap between adjacent cards by giving each card its own stacking context */
 :root {
   --bg: #07080d;
   --bg-alt: #10131c;
@@ -527,18 +526,12 @@ textarea {
 }
 
 .project-card {
-  position: relative; /* ensure absolute children are positioned relative to this card */
-  z-index: 0;         /* baseline stacking */
-  isolation: isolate; /* create a new stacking context so children cannot escape */
   overflow: hidden;
 }
 
-/* Make sure viewer and its UI live within the card stacking context */
-.project-viewer-shell {
 .project-viewer-shell,
 .project-stage {
-position: relative;
-  z-index: 1;
+  position: relative;
   min-height: 320px;
 }
 
@@ -571,9 +564,7 @@ position: relative;
     linear-gradient(160deg, #201814, #0d0c0d 62%);
 }
 
-/* Ensure mode buttons sit above viewer content but remain inside the card */
 .project-modes {
-  z-index: 5;
   position: absolute;
   top: 1rem;
   left: 1rem;
@@ -609,13 +600,9 @@ position: relative;
 .render-panel.is-active,
 .viewer-panel.is-active {
   opacity: 1;
-pointer-events: auto;
+  pointer-events: auto;
 }
 
-/* When hovering or focusing a card, raise it above neighbors so its controls are unobstructed */
-.project-card:hover,
-.project-card:focus-within {
-  z-index: 10;
 .render-image,
 .wireframe-image,
 .viewer-canvas {
@@ -623,10 +610,6 @@ pointer-events: auto;
   height: 320px;
 }
 
-/* Slightly reduce mode button size on narrow viewports to avoid spill */
-@media (max-width: 760px) {
-  .project-modes { gap: 0.35rem; }
-  .mode-button { min-height: 36px; padding: 0.46rem 0.7rem; font-size: 0.92rem; }
 .render-image,
 .wireframe-image {
   display: block;
