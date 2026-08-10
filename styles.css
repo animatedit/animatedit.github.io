@@ -206,7 +206,7 @@ textarea {
   font-family: "Sora", sans-serif;
   font-size: 0.92rem;
   font-weight: 700;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -275,7 +275,7 @@ textarea {
   color: var(--accent);
   font-size: 0.8rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -527,6 +527,10 @@ textarea {
 
 .project-card {
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100%;
 }
 
 .project-viewer-shell,
@@ -643,14 +647,19 @@ textarea {
   position: absolute;
   inset: 0;
   z-index: 1;
-  display: grid;
-  align-content: center;
-  justify-items: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
   gap: 0.8rem;
-  padding: 1.4rem;
+  padding: 4.2rem 1.4rem 1.4rem;
   background:
     linear-gradient(180deg, rgba(7, 10, 16, 0.2), rgba(7, 10, 16, 0.72)),
     radial-gradient(circle at 72% 25%, rgba(255, 100, 106, 0.18), transparent 24%);
+}
+
+.solid-placeholder button {
+  z-index: 2;
 }
 
 .solid-kicker {
@@ -658,7 +667,7 @@ textarea {
   color: var(--accent);
   font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -697,6 +706,17 @@ textarea {
 
 .project-copy {
   padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.project-copy ul {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
 }
 
 .project-topline {
@@ -711,7 +731,7 @@ textarea {
   color: var(--accent);
   font-size: 0.84rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -733,6 +753,7 @@ textarea {
 
 .project-commerce {
   display: inline-flex;
+  align-self: flex-start;
   margin-bottom: 0.9rem;
   padding: 0.42rem 0.75rem;
   border: 1px solid rgba(255, 100, 106, 0.28);
@@ -740,12 +761,17 @@ textarea {
   color: #ffd6d8;
   background: rgba(255, 100, 106, 0.12);
   font-size: 0.82rem;
+  max-width: max-content;
+  width: auto;
+  white-space: nowrap;
 }
 
 .project-link {
   display: inline-flex;
+  align-self: flex-start;
   margin-top: 0.8rem;
   font-weight: 700;
+  max-width: max-content;
 }
 
 .about-panel,
